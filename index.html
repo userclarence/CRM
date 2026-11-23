@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reversing Mill 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE work: an operator's live view of a real machine, calm and exact
+   IDEA the mill's own pulpit desk: a live model beside push-button lamps, readouts and the interlock list
+   PICTURE the 3D Kawasaki combination reverse mill laid out from the line drawings, strip running reel to reel
+   COLOUR concrete ground, mill teal from the machine's paint, lamp green, signal red for faults
+   TYPE Barlow Condensed for titles, buttons and figures, Barlow for text
+   LAYOUT laptop: model left, readouts right, pulpit buttons under the model, lists below; phone: title, model, buttons, readouts */
+:root{color-scheme:light dark;--bg:light-dark(#e9ecea,#0f1312);--panel:light-dark(#ffffff,#171c1b);--ink:light-dark(#121816,#e6ebe9);--mute:light-dark(#56625f,#95a29f);--line:light-dark(#d3d9d6,#28302e);--teal:light-dark(#1d7a6f,#5cc2b4);--tealbg:light-dark(#dff0ed,#13302c);--red:#e0352b;--on:#1db954;--off:light-dark(#c3cac7,#3a4341);--warn:#d99a12}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif;overflow-x:clip}
+h1,h2,.num,.pb{font-family:"Barlow Condensed",Barlow,sans-serif}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;padding:20px max(3vw,16px) 14px}
+h1{margin:0;font-size:clamp(30px,4vw,44px);line-height:1.05;letter-spacing:-.01em;font-weight:700;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--mute);max-width:70ch}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;white-space:nowrap}
+.chip small{color:var(--mute);font-weight:500;font-size:14px}
+.lamp{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--off);flex:none}
+.lamp.on{background:var(--on);box-shadow:0 0 0 3px color-mix(in srgb,var(--on) 28%,transparent)}
+.lamp.bad{background:var(--red);box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 28%,transparent)}
+.lamp.warn{background:var(--warn)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;padding:0 max(3vw,16px)}
+.scene{position:relative;height:clamp(380px,62vh,700px);border-radius:14px;overflow:hidden;background:#1a201f;touch-action:none;user-select:none}
+.scene canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;padding:3px 8px;border-radius:6px;background:rgba(10,14,13,.8);color:#eef3f1;font:600 14px/1.25 "Barlow Condensed",sans-serif;white-space:nowrap;border-left:3px solid #5cc2b4}
+.lbl small{display:block;font:500 12px/1.2 Barlow,sans-serif;color:#b9c6c3}
+.views{position:absolute;left:10px;top:10px;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 20px);z-index:2}
+.views button{background:rgba(10,14,13,.75);color:#e9efed;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:0 12px;min-height:36px;font:600 15px "Barlow Condensed",sans-serif;cursor:pointer}
+.views button.act{background:#5cc2b4;color:#06211d;border-color:#5cc2b4}
+.hint{position:absolute;right:10px;bottom:10px;color:#c9d4d1;font-size:13px;background:rgba(10,14,13,.6);padding:4px 10px;border-radius:6px}
+.desk{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.row .cap{margin:0 4px 0 0;min-width:4.5em}
+.pb{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:17px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;letter-spacing:.01em}
+.pb:hover{border-color:var(--teal)}
+.pb:focus-visible,.views button:focus-visible,select:focus-visible,.tg:focus-within{outline:3px solid var(--teal);outline-offset:2px}
+.pb.act{background:var(--tealbg);border-color:var(--teal);color:var(--teal)}
+.pb.es{background:var(--red);border-color:var(--red);color:#fff}
+.pb.qs{border-color:color-mix(in srgb,var(--red) 50%,var(--line))}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.seg button{min-height:42px;padding:0 12px;border:0;background:none;color:var(--ink);font:600 16px "Barlow Condensed",sans-serif;cursor:pointer}
+.seg button.act{background:var(--tealbg);color:var(--teal)}
+.tg{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer;font-weight:600}
+.tg input{width:18px;height:18px;accent-color:#1d7a6f}
+select{min-height:44px;font:16px Barlow,sans-serif;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.cap{font-size:13px;color:var(--mute);margin:0 0 4px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.passbar{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.passbar .num{font-size:30px;font-weight:700;line-height:1}
+.dir{font:600 18px "Barlow Condensed",sans-serif;color:var(--teal);white-space:nowrap;text-align:right}
+.dir small{display:block;font:500 13px Barlow,sans-serif;color:var(--mute)}
+.agc{display:flex;flex-wrap:wrap;gap:6px}
+.agc span{font:600 13px Barlow,sans-serif;padding:2px 8px;border-radius:6px;border:1px solid var(--line);color:var(--mute)}
+.agc span.on{background:var(--tealbg);border-color:var(--teal);color:var(--teal)}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.k{border-top:1px solid var(--line);padding-top:6px}
+.k span{display:block;font-size:13px;color:var(--mute)}
+.k b{font:600 26px/1.1 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.k b small{font-size:15px;color:var(--mute);font-weight:500;margin-left:3px}
+.k i{display:block;font-style:normal;font-size:12px;color:var(--mute)}
+.k.alert b{color:var(--red)}
+.tr{position:relative;height:90px}
+.tr canvas{position:absolute;inset:0;width:100%;height:100%}
+.card{background:var(--tealbg);border-radius:10px;padding:12px}
+.card h2{margin:0;font-size:22px;line-height:1.1}
+.card h2 small{font:500 13px Barlow,sans-serif;color:var(--mute);margin-left:6px}
+.card p{margin:4px 0 8px;font-size:14px;color:var(--mute)}
+.rows{width:100%;border-collapse:collapse;font-size:14px}
+.rows td{padding:4px 0;border-top:1px solid color-mix(in srgb,var(--teal) 18%,transparent);vertical-align:top}
+.rows td:nth-child(2){text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;padding-left:8px}
+.rows td:nth-child(3){text-align:right;color:var(--mute);width:5.4em;font-size:13px;white-space:nowrap}
+.lower{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:14px max(3vw,16px) 8px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.box h2{margin:0 0 4px;font-size:22px;line-height:1.1}
+.box>.cap{margin-bottom:10px}
+.il{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 18px;font-size:14px}
+.il h3,.sg h3{grid-column:1/-1;margin:10px 0 2px;font:600 14px Barlow,sans-serif;color:var(--mute)}
+.il div{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.il code,.sg code{font:600 12px ui-monospace,Menlo,monospace;color:var(--mute);margin-left:auto;white-space:nowrap}
+.il .na{opacity:.45}
+.il em{font-style:normal;font-size:11px;font-weight:600;color:var(--teal);border:1px solid var(--teal);border-radius:4px;padding:0 3px}
+.ilhead{display:flex;align-items:center;gap:10px;font:600 18px "Barlow Condensed",sans-serif;margin:6px 0 4px}
+.sg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 18px;font-size:14px}
+.sg div{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.sg b{font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:auto}
+.sg b+code{margin-left:6px;width:5.6em;text-align:right}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+.t th{font-weight:500;color:var(--mute);font-size:13px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
+.t th:first-child,.t td:first-child,.t th:nth-child(2),.t td:nth-child(2){text-align:left}
+.t td{padding:6px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+.t td:nth-child(2){white-space:normal}
+.t tr.now td{background:var(--tealbg);font-weight:600}
+.t tr.done td{color:var(--mute)}
+.scroll{overflow-x:auto}
+.log{list-style:none;margin:0;padding:0;max-height:320px;overflow:auto;font-size:14px}
+.log li{display:grid;grid-template-columns:4.6em 14px minmax(0,1fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.log time{color:var(--mute);font-variant-numeric:tabular-nums}
+.sys{font-size:15px}
+.sys ul{margin:6px 0 0;padding-left:18px}
+.sys li{margin:3px 0}
+.foot{padding:4px max(3vw,16px) 28px;color:var(--mute);font-size:14px;max-width:120ch}
+.err{position:absolute;inset:0;display:grid;place-items:center;color:#e9efed;padding:24px;text-align:center}
+@media(max-width:1080px){.grid{grid-template-columns:minmax(0,1fr)}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.lower{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.scene{height:max(320px,54vh)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.hint{display:none}.top{padding-top:14px}.k b{font-size:23px}.il,.sg{grid-template-columns:minmax(0,1fr)}.row .cap{width:100%}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Combination reverse mill, live 3D</h1>
+    <p class="sub">Kawasaki Heavy Industries mill for the Maghreb Tubes cold complex: payoff reel, entry and delivery tension reels around one 4-high stand, in cold reverse (CR) or skinpass (SK) mode. Tap any part to see its devices.</p>
+  </div>
+  <div class="chip"><span class="lamp on" id="st-lamp"></span><span id="st-state">Rolling</span><small>Demo data, PLC not connected</small></div>
+</header>
+
+<main class="grid">
+  <section>
+    <div class="scene" id="scene">
+      <div id="labels"></div>
+      <div class="views" id="views">
+        <button data-v="overview" class="act">Overview</button>
+        <button data-v="entry">Entry side</button>
+        <button data-v="stand">Roll bite</button>
+        <button data-v="exit">Delivery side</button>
+        <button data-v="top">Plan</button>
+      </div>
+      <div class="hint">Drag to rotate, scroll or pinch to zoom, tap a part</div>
+    </div>
+    <div class="desk">
+      <div class="row"><span class="cap">Line</span>
+        <button class="pb" id="b-jog" title="Hold to jog at 30 m/min">JOG</button>
+        <button class="pb" id="b-thread">THREAD</button>
+        <button class="pb" id="b-run">RUN</button>
+        <button class="pb" id="b-hold">HOLD</button>
+        <button class="pb" id="b-stop">STOP</button>
+        <button class="pb qs" id="b-qs">Q-STOP</button>
+        <button class="pb es" id="b-es">E-STOP</button>
+        <button class="pb" id="b-esr">E-STOP RESET</button>
+      </div>
+      <div class="row"><span class="cap">Tension</span>
+        <button class="pb" id="t-POR"><span class="lamp"></span>POR TENSION</button>
+        <button class="pb" id="t-ETR"><span class="lamp"></span>ETR TENSION</button>
+        <button class="pb" id="t-DEL"><span class="lamp"></span>DEL TENSION</button>
+      </div>
+      <div class="row"><span class="cap">Mode</span>
+        <div class="seg" id="rmode" aria-label="Running mode"><button data-m="CR" class="act">CR cold reverse</button><button data-m="SK">SK skinpass</button></div>
+        <label class="tg"><input type="checkbox" id="c-auto" checked> Auto sequence</label>
+        <label class="tg"><input type="checkbox" id="c-agc" checked> AGC</label>
+        <div class="seg" id="spd" aria-label="Simulation speed"><button data-s="1">1×</button><button data-s="5">5×</button><button data-s="20" class="act">20×</button><button data-s="60">60×</button></div>
+        <label class="tg"><input type="checkbox" id="c-lbl" checked> Labels</label>
+      </div>
+      <div class="row"><span class="cap">Faults</span>
+        <select id="fault" aria-label="Inject a fault">
+          <option value="none">Inject a fault…</option>
+          <option value="gauge">Incoming thickness step (AGC test)</option>
+          <option value="cool">Coolant condition not OK</option>
+          <option value="lub">DTR oil lub. flow low (FS40401)</option>
+          <option value="hyd">High hyd. pressure low (PS50501)</option>
+          <option value="servo">HPC servo valve stick</option>
+          <option value="break">Strip breakage</option>
+        </select>
+        <button class="pb" id="b-frst">Fault reset</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="passbar"><div><span class="cap" id="v-mode">Rolling · CR · POR mode</span><div class="num">Pass <span id="v-pass">2</span> of <span id="v-np">5</span></div></div><div class="dir" id="v-dir">DTR → ETR<small>&nbsp;</small></div></div>
+    <div class="agc" id="agc"></div>
+    <div class="kpis">
+      <div class="k"><span>Line speed</span><b id="k-spd">0</b><i id="k-spdi"></i></div>
+      <div class="k"><span>Roll force</span><b id="k-frc">0</b><i id="k-frci"></i></div>
+      <div class="k"><span id="k-hinl">Entry thickness</span><b id="k-hin">0</b><i id="k-hini"></i></div>
+      <div class="k" id="kk-hout"><span id="k-houtl">Exit thickness</span><b id="k-hout">0</b><i id="k-houti"></i></div>
+      <div class="k"><span id="k-gapl">Roll gap</span><b id="k-gap">0</b><i id="k-gapi"></i></div>
+      <div class="k"><span>Tension entry / delivery</span><b id="k-ten">0</b><i id="k-teni"></i></div>
+    </div>
+    <div>
+      <p class="cap" id="trend-cap">Exit thickness deviation, µm (band = ±1% tolerance)</p>
+      <div class="tr"><canvas id="trend"></canvas></div>
+    </div>
+    <div class="card" id="sel"></div>
+  </aside>
+</main>
+
+<section class="lower">
+  <div class="box">
+    <h2>Line run interlock</h2>
+    <p class="cap">From the interlock list (LINE RUN I/L). <em style="font-style:normal">RUN</em>-marked conditions are needed to accelerate above threading speed.</p>
+    <div class="ilhead"><span class="lamp" id="il-lamp"></span><span id="il-sum">Line run I/L OK</span></div>
+    <div class="il" id="il"></div>
+  </div>
+  <div class="box">
+    <h2>Sensors and drives</h2>
+    <p class="cap">Device numbers from the sensor and motor lists. PLC I/O addresses come later from the T-PDS32 program.</p>
+    <div class="sg" id="sg"></div>
+    <div class="scroll" style="margin-top:12px"><table class="t"><thead><tr><th>Drive</th><th>Application</th><th>Rating</th><th>Speed</th><th>Power</th><th>Load</th></tr></thead><tbody id="drv"></tbody></table></div>
+  </div>
+  <div class="box">
+    <h2>Pass schedule</h2>
+    <p class="cap" id="sch-cap">Example schedule within the line specification.</p>
+    <div class="scroll"><table class="t"><thead><tr><th>Pass</th><th>Path</th><th>In mm</th><th>Out mm</th><th>Red.</th><th>Max m/min</th></tr></thead><tbody id="sch"></tbody></table></div>
+    <p class="cap" style="margin-top:10px">Coils finished: <b id="v-coils">0</b>. Next coil: <b id="v-next">CR</b>.</p>
+    <div class="sys">
+      <h2 style="margin-top:14px">Control system</h2>
+      <ul>
+        <li>Toshiba <b>T3H</b> PLC, line control</li>
+        <li>Toshiba <b>T3H</b> PLC, auxiliary control</li>
+        <li><b>PCS6000</b> for AGC and the hydraulic push-up (HPC)</li>
+        <li>Tosline-S20 control network to the drives, pulpit desk remote I/O and the thickness gauges; Ethernet to the HMI screens</li>
+      </ul>
+    </div>
+  </div>
+  <div class="box"><h2>Events and alarms</h2><p class="cap">Newest first.</p><ul class="log" id="log"></ul></div>
+</section>
+<p class="foot">Layout, distances, drive ratings, device numbers, speeds, accelerations, tension limits and interlock conditions come from the Kawasaki description (Basic Operation Description, motor, sensor and interlock lists). The pass schedule, coil and every live value are simulated, and the 3D shapes are simplified. Once the signals are mapped from the T-PDS32 program, the same view can run on live PLC data.</p>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+{
+const $=id=>document.getElementById(id);
+/* ---------- line data (from the description) ---------- */
+const MODES={
+  CR:{name:'Cold reverse',passes:[3.00,2.20,1.60,1.15,0.85,0.65],vmax:[530,600,700,900,1200],kf:[450,540,620,690,750]},
+  SK:{name:'Skinpass',passes:[0.80,0.792],vmax:[404],kf:[300]}
+};
+const W=1.25,MASS=20000,RHO=7850,TAIL=5,ACC=1.0,QACC=68/60,EACC=2.0,THR=0.5,MODULUS=5000,SKF=3600;
+const PASS_Y=1.3,REEL_Y=0.95,WR_R=0.22,BUR_R=0.66,DEF_R=0.174;
+const X={POR:9.55,PPR:7.85,SCR:6.6,ETR:4.8,EDEF:2.7,ETG:2.0,CSR:-1.45,DTG:-2.04,DDEF:-2.9,DTR:-5.0,DBW:-6.5};
+const MAND={POR:0.61,ETR:0.508,DTR:0.508},TCAP={POR:49,ETR:94,DTR:94};
+const lenAt=h=>MASS/(RHO*W*h/1000);
+const reels={POR:{id:'POR',L:0,h:3,rpm:0},ETR:{id:'ETR',L:0,h:3,rpm:0},DTR:{id:'DTR',L:0,h:3,rpm:0}};
+const diam=r=>Math.sqrt(MAND[r.id]**2+4*(r.h/1000)*r.L/Math.PI);
+const S={mode:'CR',next:'CR',pass:1,mv:1,un:null,wd:null,seq:'roll',cmd:'run',v:8,head:1e9,pathLen:20,biteAt:8,pinchAt:0,pos:0,travIn:0,travOut:0,timer:0,
+  auto:true,agc:true,scale:20,estop:false,broken:false,f:{gauge:false,cool:false,lub:false,hyd:false,servo:false},
+  tenPOR:false,tenETR:true,tenDEL:true,stopT:0,asc:false,corr:0,noise:0,dev:0,elong:1,hinAct:0,houtAct:0,force:0,fop:0,fdr:0,gap:0,tin:0,tout:0,
+  press:210,flow:6000,coils:0,off:false,carPOR:0,carDTR:0,skid:0,pmill:0,pun:0,pwd:0};
+const NAMES={thread:'Threading',roll:'Rolling',between:'Reversing',unload:'Coil change'};
+const M=()=>MODES[S.mode];
+const NP=()=>M().passes.length-1;
+
+function setupPass(k){
+  S.pass=k;S.un=k===0?reels.POR:(k%2?reels.DTR:reels.ETR);S.wd=k%2?reels.ETR:reels.DTR;S.mv=S.wd===reels.DTR?-1:1;
+  S.un.h=M().passes[k];S.wd.h=M().passes[k+1];S.wd.L=0;S.asc=false;
+}
+function loadCoil(){
+  S.mode=S.next;reels.POR.L=lenAt(M().passes[0]);reels.POR.h=M().passes[0];reels.ETR.L=0;reels.DTR.L=0;
+  setupPass(0);S.seq='thread';S.head=0;S.broken=false;S.pos=0;S.cmd='stop';S.tenDEL=false;S.tenETR=false;S.tenPOR=false;S.carPOR=0;S.carDTR=0;
+  buildSchedule();log('info','New '+M().name.toLowerCase()+' coil on POR: '+M().passes[0].toFixed(2)+' mm × 1250 mm, 20 t');
+}
+function endPass(){
+  const last=S.pass+1>=NP();S.wd.L=lenAt(M().passes[S.pass+1]);S.un.L=0;S.asc=false;S.v=0;
+  if(last){S.seq='unload';S.timer=9;S.coils++;S.tenDEL=false;S.tenETR=false;S.tenPOR=false;log('ok','Coil finished at '+M().passes[NP()].toFixed(2)+' mm. Shear cut, delivery coil car unloading DTR');}
+  else{S.seq='between';S.timer=4;log('info','Pass '+(S.pass+1)+' done'+(S.pass===0?', POR tail threaded onto ETR':'')+', mill reversing');}
+}
+const tenKey=r=>r===reels.POR?'POR':r===reels.ETR?'ETR':'DEL',tenOf=r=>S['ten'+tenKey(r)],entTen=()=>tenOf(S.un);
+const anyFault=()=>S.f.cool||S.f.lub||S.f.hyd||S.f.servo||S.broken||S.estop;
+
+/* ---------- interlocks (LINE RUN I/L) ---------- */
+const porM=()=>S.un===reels.POR,etrM=()=>S.un===reels.ETR||S.wd===reels.ETR,dtrM=()=>true;
+const IL=[
+  ['Line','ES I/L OK','Memory',()=>!S.estop&&!S.broken],
+  ['Line','QS I/L OK','Memory',()=>!S.f.servo],
+  ['Line','Line data set complete','Memory',()=>true],
+  ['Line','Roll dia data set complete','Memory',()=>true],
+  ['Utilities','High hyd. press normal','PS50501',()=>S.press>150],
+  ['Utilities','Aux. hyd. press normal','PS50601',()=>true],
+  ['Utilities','Coolant condition OK','Memory',()=>!S.f.cool],
+  ['POR','POR mandrel expand','PS10401',()=>true,porM],
+  ['POR','POR tension ON','Memory',()=>S.tenPOR,porM],
+  ['POR','POR coil car out of "zone B"','AB10301',()=>S.carPOR===0,porM],
+  ['POR','POR holddown roll upper end','PX10501',()=>!phd(),porM,1],
+  ['POR','POR thread table retract end','PX10602',()=>!phd(),porM,1],
+  ['POR','POR pinch top roll upper end','PX10701',()=>!ppr(),porM,1],
+  ['POR','Strip centering roll open end','PX10803',()=>!ppr(),porM,1],
+  ['POR','POR lub. flow normal','FS10401',()=>true,porM],
+  ['ETR','ETR mandrel expand','PS20401',()=>true,etrM],
+  ['ETR','Entry tension ON','Memory',()=>S.tenETR,etrM],
+  ['ETR','ETR coil car out of "zone B"','AB20301',()=>true,etrM],
+  ['ETR','ETR thread table lower end','PX20601',()=>true,etrM],
+  ['ETR','Entry pinch roll lift open','PX20701',()=>true,etrM],
+  ['ETR','ETR lub. flow normal','FS20401',()=>true,etrM],
+  ['DTR','DTR mandrel expand','PS40401',()=>true,dtrM],
+  ['DTR','Delivery tension ON','Memory',()=>S.tenDEL,dtrM,1],
+  ['DTR','DTR snubber roll lower end','PX40602',()=>true,dtrM],
+  ['DTR','Belt wrapper traverse out end','PX40702',()=>!dbw(),dtrM,1],
+  ['DTR','Delivery coil car out of "zone B"','AB40801',()=>S.carDTR===0,dtrM],
+  ['DTR','DTR oil lub. flow normal','FS40401',()=>!S.f.lub,dtrM],
+  ['Mill','Rolling mode','Memory',()=>true],
+  ['Mill','HPC control ON','Memory',()=>!S.f.servo],
+  ['Mill','Rolling force ≥ 490 kN (50 t)','Memory',()=>S.force>=490,null,1],
+  ['Mill','WR bend stopper retract','PS30103',()=>true],
+  ['Mill','Entry cobble guard extend','PS30101',()=>true],
+  ['Mill','Delivery cobble guard extend','PS30102',()=>true],
+  ['Mill','Shear knife lower end','PX30402',()=>S.seq!=='unload'],
+  ['Mill','Mill oil lub. flow normal','FS30101',()=>true],
+  ['Mill','Entry X-ray line limit','I/F',()=>true],
+  ['Mill','Delivery X-ray line limit','I/F',()=>true]
+];
+const phd=()=>S.seq==='thread'&&porM()&&S.head<S.pinchAt;
+const ppr=()=>S.seq==='thread'&&porM();
+const dbw=()=>S.seq==='thread'&&S.wd===reels.DTR&&S.head>S.pathLen-2.5;
+const ilFail=run=>IL.filter(i=>(!i[4]||i[4]())&&(run||!i[5])&&!i[3]());
+
+/* ---------- operator commands ---------- */
+const manual=why=>{if(S.auto){S.auto=false;$('c-auto').checked=false;log('info','Auto sequence off: '+why);}};
+function cmdThread(){const f=ilFail(false);if(f.length){log('warn','THREAD refused: '+f[0][1]+' ('+f[0][2]+')');return;}if(!entTen()){log('warn','THREAD refused: entry tension not ON');return;}S.cmd='thread';}
+function cmdRun(){
+  if(S.estop){log('warn','RUN refused: E-stop active');return;}
+  if(S.cmd==='stop'||S.cmd==='jog'){cmdThread();if(S.cmd==='thread')log('info','RUN: accelerating to threading speed (30 m/min). Press RUN again to accelerate');return;}
+  if(S.seq==='thread'){log('warn','Strip head not yet wrapped on '+S.wd.id+': line stays at threading speed');return;}
+  const f=ilFail(true);if(f.length){log('warn','RUN refused: '+f[0][1]+' ('+f[0][2]+')');return;}
+  if(S.cmd!=='run'){S.cmd='run';log('info','RUN: accelerating to pass speed '+M().vmax[S.pass]+' m/min');}
+}
+$('b-thread').onclick=()=>{manual('THREAD pressed');cmdThread();};
+$('b-run').onclick=()=>cmdRun();
+$('b-hold').onclick=()=>{if(S.v>THR){manual('HOLD pressed');S.cmd='hold';log('info','HOLD at '+Math.round(S.v*60)+' m/min');}};
+$('b-stop').onclick=()=>{if(S.v>0||S.cmd!=='stop'){manual('STOP pressed');S.cmd='stop';log('info','STOP: normal deceleration, 60 m/min/s');}};
+$('b-qs').onclick=()=>{manual('Q-STOP pressed');S.cmd='qstop';log('warn','Q-STOP: quick deceleration, 68 m/min/s');};
+$('b-es').onclick=()=>{if(!S.estop){manual('E-STOP pressed');S.estop=true;S.cmd='estop';log('alarm','E-STOP: main motors stop at max. deceleration');}};
+$('b-esr').onclick=()=>{if(!S.estop)return;if(S.v>0){log('warn','E-STOP RESET only at line stop');return;}S.estop=false;S.cmd='stop';log('ok','E-STOP reset');};
+const jog=$('b-jog');
+jog.addEventListener('pointerdown',()=>{if(S.estop||S.cmd!=='stop'||S.v>0||S.seq==='between'||S.seq==='unload'){log('warn','JOG needs line stop and no E-stop');return;}manual('JOG used');S.cmd='jog';});
+const jogEnd=()=>{if(S.cmd==='jog')S.cmd='stop';};
+jog.addEventListener('pointerup',jogEnd);jog.addEventListener('pointerleave',jogEnd);
+function setTen(id,on){
+  const key='ten'+id;if(S[key]===on)return;
+  if(!on&&S.v>0){log('warn','TENSION OFF not allowed during line run');return;}
+  if(on&&S.wd&&tenKey(S.wd)===id&&S.seq==='thread'&&S.head<S.pathLen){log('warn',id+' TENSION refused: strip head not yet on '+S.wd.id+' mandrel');return;}
+  S[key]=on;log('info',id+' TENSION '+(on?'ON':'OFF'));
+}
+for(const id of['POR','ETR','DEL'])$('t-'+id).onclick=()=>{manual('tension switched by operator');setTen(id,!S['ten'+id]);};
+$('c-auto').onchange=e=>{S.auto=e.target.checked;log('info','Auto sequence '+(S.auto?'on':'off'));};
+$('c-agc').onchange=e=>{S.agc=e.target.checked;log('info','AGC '+(S.agc?'on':'off'));};
+$('c-lbl').onchange=e=>{$('labels').style.display=e.target.checked?'':'none';};
+for(const b of $('spd').children)b.onclick=()=>{S.scale=+b.dataset.s;for(const c of $('spd').children)c.classList.toggle('act',c===b);};
+for(const b of $('rmode').children)b.onclick=()=>{
+  S.next=b.dataset.m;for(const c of $('rmode').children)c.classList.toggle('act',c===b);
+  if(S.seq==='thread'&&S.head===0&&S.v===0&&S.next!==S.mode){loadCoil();}
+  else log('info','Running mode '+S.next+' selected: applies from the next coil');
+};
+$('fault').onchange=e=>{
+  const f=e.target.value;if(f==='none')return;
+  if(f==='gauge'){S.f.gauge=true;log('warn','Incoming thickness step +3.5%'+(S.agc?', AGC correcting':', AGC is off'));}
+  if(f==='cool'){S.f.cool=true;S.cmd=S.v>0?'stop':S.cmd;log('warn','Coolant condition not OK: line run I/L lost, normal stop');}
+  if(f==='lub'){S.f.lub=true;S.cmd=S.v>0?'stop':S.cmd;log('warn','DTR oil lub. flow low (FS40401): normal stop');}
+  if(f==='hyd'){S.f.hyd=true;S.cmd='qstop';log('alarm','High hyd. pressure low (PS50501): Q-STOP');}
+  if(f==='servo'){S.f.servo=true;S.cmd='qstop';log('alarm','HPC servo valve stick: QS I/L, Q-STOP and HPC blocking');}
+  if(f==='break'){S.broken=true;S.cmd='estop';log('alarm','Strip breakage detected (back-tension reel reverse rotation): all drives stop at max. deceleration, HPC blocking, coolant stop');}
+  if(f!=='gauge')manual('fault');
+};
+$('b-frst').onclick=()=>{
+  if(S.v>0&&!S.f.gauge){log('warn','Fault reset only at line stop');return;}
+  const brk=S.broken;S.f={gauge:false,cool:false,lub:false,hyd:false,servo:false};$('fault').value='none';
+  if(brk){S.broken=false;S.seq='unload';S.timer=6;S.tenDEL=S.tenETR=S.tenPOR=false;reels.ETR.L=0;log('ok','Faults reset, broken strip removed');return;}
+  if(S.cmd==='qstop')S.cmd='stop';log('ok','Faults reset');
+};
+
+/* ---------- simulation step ---------- */
+function autoStep(){
+  if(S.seq==='thread'&&S.cmd==='stop'&&S.v===0){if(!entTen())setTen(tenKey(S.un),true);cmdThread();if(S.cmd==='thread')log('info','THREAD (auto): head to '+S.wd.id+' at 30 m/min');}
+  if(S.seq==='roll'&&S.cmd!=='run'&&S.cmd!=='hold'){
+    if(!tenOf(S.wd))setTen(tenKey(S.wd),true);if(!entTen())setTen(tenKey(S.un),true);
+    if(!ilFail(true).length){if(S.cmd==='stop'&&S.v===0)S.cmd='thread';else if(S.cmd==='thread'){S.cmd='run';log('info','RUN (auto): pass '+(S.pass+1)+' to '+M().vmax[S.pass]+' m/min');}}
+  }
+}
+function step(dt){
+  const k=S.pass,hin=M().passes[k],hout=M().passes[k+1];
+  if(S.auto&&!anyFault())autoStep();
+  if(S.seq==='between'){S.timer-=dt;if(S.timer<=0&&S.v===0){setupPass(k+1);S.seq='roll';S.cmd='stop';log('info','Pass '+(k+2)+': '+S.un.id+' → '+S.wd.id+', '+M().passes[k+1].toFixed(2)+' → '+M().passes[k+2].toFixed(2)+' mm');if(S.auto){S.tenETR=true;S.tenDEL=true;}}return;}
+  if(S.seq==='unload'){S.timer-=dt;const t=S.timer;
+    S.carDTR=t>6?0:t>3?Math.max(0.001,(6-t)/3):0;if(t<=3&&reels.DTR.L>0){reels.DTR.L=0;S.skid++;}
+    if(t<=3&&t>0){if(reels.POR.L<1){reels.POR.h=MODES[S.next].passes[0];reels.POR.L=lenAt(reels.POR.h);}S.carPOR=Math.max(0.001,t/3);}
+    if(t<=0){S.carPOR=0;loadCoil();}return;}
+  let tgt=0,acc=ACC;
+  if(S.cmd==='thread'||S.cmd==='jog')tgt=THR;
+  else if(S.cmd==='run')tgt=S.seq==='thread'?THR:M().vmax[k]/60;
+  else if(S.cmd==='hold')tgt=S.v;
+  else if(S.cmd==='qstop')acc=QACC;
+  else if(S.cmd==='estop')acc=EACC;
+  if(S.seq==='roll'){
+    const left=S.un.L-TAIL,asc=left>0?Math.max(0.15,Math.sqrt(2*ACC*0.9*left*hin/hout)):0;
+    if(tgt>asc){tgt=asc;if(!S.asc&&S.v>THR*2){S.asc=true;log('info','ASC: auto slow-down, '+Math.round(left)+' m left on '+S.un.id);}}
+    if(left<=0&&S.v<0.02){endPass();return;}
+  }
+  S.v+=Math.max(-acc*dt,Math.min(acc*dt,tgt-S.v));if(S.v<1e-4)S.v=0;
+  if(S.v===0&&S.cmd==='qstop')S.cmd='stop';
+  if(S.v===0&&S.cmd==='hold')S.cmd='stop';
+  S.stopT=S.v===0?S.stopT+dt:0;
+  const vin=S.v*hout/hin;
+  if(S.v>0&&!S.broken){
+    if(S.seq==='thread'){S.head+=S.v*dt;if(S.head>=S.pathLen+3){S.seq='roll';log('info','Head end wrapped on '+S.wd.id+', belt wrapper out');}}
+    S.un.L=Math.max(0,S.un.L-vin*dt);if(S.head>=S.pathLen)S.wd.L+=S.v*dt;S.pos+=vin*dt;
+  }
+  /* thickness, AGC, force */
+  const inBite=S.head>=S.biteAt,live=inBite&&!S.f.hyd&&!S.f.servo&&!S.broken&&S.cmd!=='estop';
+  S.noise+=(Math.random()-0.5)*Math.sqrt(dt)*0.9;S.noise*=Math.exp(-dt*0.6);
+  if(S.mode==='CR'){
+    const wave=Math.sin(S.pos/37)*0.6+Math.sin(S.pos/9.3)*0.4,inDev=hin*0.012*wave+(S.f.gauge?hin*0.035:0);
+    const raw=inDev*0.5*(hout/hin)+hout*0.004*S.noise;
+    if(!S.agc)S.corr=0;else if(S.v>0.4&&live)S.corr+=(raw-S.corr)*Math.min(1,dt*2.2);
+    S.dev=raw-S.corr;S.hinAct=hin+inDev;S.houtAct=hout+S.dev;
+    const tol=hout*0.01;
+    if(!S.off&&Math.abs(S.dev)>tol&&S.v>1){S.off=true;log('warn','Exit thickness off tolerance ('+(S.dev*1000).toFixed(0)+' µm)');}
+    if(S.off&&Math.abs(S.dev)<tol*0.7){S.off=false;log('ok','Exit thickness back in tolerance');}
+    const Fn=W*M().kf[k]*1e6*Math.sqrt(WR_R*(hin-hout)/1000)*1.1/1000;
+    const fT=live?(S.v>0.05?Fn*(0.9+0.1*Math.min(1,S.v/3)):Fn*0.35):0;S.force+=(fT-S.force)*Math.min(1,dt*3);
+    const gT=live?hout-S.force/MODULUS-S.corr:(S.f.servo||S.broken?S.gap:8);S.gap+=(gT-S.gap)*Math.min(1,dt*2.5);
+  }else{
+    const yieldVar=0.15*Math.sin(S.pos/53)+0.05*S.noise+(S.f.gauge?0.25:0),need=SKF/(1-yieldVar)-SKF;
+    if(!S.agc)S.corr=0;else if(live&&S.v>0.4)S.corr+=(need-S.corr)*Math.min(1,dt*1.5);
+    const fT=live?(S.v>0.05?SKF+S.corr:SKF*0.35):0;S.force+=(fT-S.force)*Math.min(1,dt*3);
+    S.elong=live&&S.v>0.05?Math.max(0,(S.force/SKF)*(1-yieldVar)):0;
+    S.hinAct=hin+0.004*S.noise*0.2;S.houtAct=S.elong>0?hin/(1+S.elong/100):hin;S.dev=0;
+    const gT=live?hout-S.force/MODULUS:(S.f.servo||S.broken?S.gap:8);S.gap+=(gT-S.gap)*Math.min(1,dt*2.5);
+    if(!S.off&&Math.abs(S.elong-1)>0.15&&S.v>1){S.off=true;log('warn','Elongation off target ('+S.elong.toFixed(2)+'%)');}
+    if(S.off&&Math.abs(S.elong-1)<0.08){S.off=false;log('ok','Elongation back on target');}
+  }
+  const tilt=0.04*Math.sin(S.pos/61);S.fop=S.force*(0.5+tilt);S.fdr=S.force-S.fop;
+  const st=S.stopT>60?0.3:1;
+  const tiT=live&&tenOf(S.un)?Math.min(TCAP[S.un.id],31.25*hin)*(S.v>0?1:st):0,toT=live&&tenOf(S.wd)&&S.head>=S.pathLen?Math.min(TCAP[S.wd.id],50*hout)*(S.v>0?1:st):0;
+  S.tin+=(tiT-S.tin)*Math.min(1,dt*3);S.tout+=(toT-S.tout)*Math.min(1,dt*3);
+  S.press+=((S.f.hyd?60:210)-S.press)*Math.min(1,dt*1.5);
+  S.flow+=((!S.f.cool&&!S.broken&&S.cmd!=='estop'?(S.mode==='CR'?6000:1200):0)-S.flow)*Math.min(1,dt*1.5);
+  const kf=M().kf[k];
+  S.pmill=S.v>0?Math.max(0,kf*Math.log(hin/Math.max(0.01,hout*(S.mode==='SK'?1-S.elong/100:1)))*W*hout*S.v+S.tin*vin-S.tout*S.v):0;
+  if(S.mode==='SK')S.pmill=S.v>0?S.force*0.02*S.v:0;
+  S.pun=S.tin*vin;S.pwd=S.tout*S.v;
+  for(const r of Object.values(reels)){const sp=S.broken?0:r===S.un?vin:r===S.wd&&S.head>=S.pathLen?S.v:0;r.rpm=sp/(Math.PI*diam(r))*60;}
+}
+
+/* ---------- UI: log, tables ---------- */
+const logEl=$('log');
+function log(kind,msg){
+  const t=new Date().toTimeString().slice(0,8),li=document.createElement('li');
+  li.innerHTML='<time>'+t+'</time><span class="lamp '+(kind==='alarm'?'bad':kind==='warn'?'warn':kind==='ok'?'on':'')+'"></span><span></span>';
+  li.lastChild.textContent=msg;logEl.prepend(li);while(logEl.children.length>50)logEl.lastChild.remove();
+}
+const pathTxt=k=>k===0?'POR → DTR':k%2?'DTR → ETR':'ETR → DTR';
+function buildSchedule(){
+  const m=M();$('v-np').textContent=NP();
+  $('sch').innerHTML=m.passes.slice(0,-1).map((h,k)=>'<tr id="p'+k+'"><td>'+(k+1)+'</td><td>'+pathTxt(k)+'</td><td>'+h.toFixed(2)+'</td><td>'+m.passes[k+1].toFixed(m.passes[k+1]<1?3:2)+'</td><td>'+(S.mode==='SK'?'1.0% el.':Math.round((1-m.passes[k+1]/h)*100)+'%')+'</td><td>'+m.vmax[k]+'</td></tr>').join('');
+  $('sch-cap').textContent=S.mode==='CR'?'Example cold reverse schedule (line spec: incoming 1.2–4.5 mm, product 0.18–2.0 mm, max. 7 passes). Pass 1 is limited to 400 m/min at mill entry by the POR.':'Example skinpass: one pass POR → DTR with 1.0% elongation, constant force and elongation control.';
+}
+let ilHTML='',grp='';
+for(const i of IL){if(i[0]!==grp){grp=i[0];ilHTML+='<h3>'+grp+'</h3>';}ilHTML+='<div id="il'+IL.indexOf(i)+'"><span class="lamp"></span><span>'+i[1]+(i[5]?' <em>RUN</em>':'')+'</span><code>'+i[2]+'</code></div>';}
+$('il').innerHTML=ilHTML;
+const f1=(v,d)=>v.toFixed(d),yes=b=>b?'yes':'no',onoff=b=>b?'on':'off',tn=kn=>(kn/9.81).toFixed(1)+' t';
+const SG=[
+  ['Digital','PX10303','POR coil car: coil detection',()=>reels.POR.L>1||S.carPOR>0],
+  ['Digital','PS10401','POR mandrel expand',()=>reels.POR.L>1],
+  ['Digital','PX10501','POR holddown roll upper end',()=>!phd()],
+  ['Digital','PX10701','POR pinch top roll upper end',()=>!ppr()],
+  ['Digital','PS20401','ETR mandrel expand',()=>true],
+  ['Digital','LS20801','Entry X-ray in-line position',()=>true],
+  ['Digital','PX20701','Entry pinch roll lift: open',()=>true],
+  ['Digital','PS30105','Push-up cylinder: normal pressure',()=>!S.f.servo&&S.press>150],
+  ['Digital','PS30103','WR bend stopper retract',()=>true],
+  ['Digital','PX30402','Shear bottom knife lower end',()=>S.seq!=='unload'],
+  ['Digital','FS30101','Mill oil lubrication flow',()=>true],
+  ['Digital','LS40101','Delivery X-ray in-line position',()=>true],
+  ['Digital','PS40401','DTR mandrel expand',()=>true],
+  ['Digital','PX40702','Belt wrapper traverse out end',()=>!dbw()],
+  ['Digital','PX40803','Delivery coil car: coil detection',()=>S.carDTR>0],
+  ['Digital','FS40401','DTR oil lubrication flow',()=>!S.f.lub],
+  ['Digital','PS50501','High hyd. pressure normal',()=>S.press>150],
+  ['Analog','XG20801','Entry X-ray thickness',()=>(S.head>2?f1(S.mv<0?S.hinAct:S.houtAct,3):'—')+' mm'],
+  ['Analog','XG40101','Delivery X-ray thickness',()=>(S.head>S.biteAt+2.1?f1(S.mv<0?S.houtAct:S.hinAct,3):'—')+' mm'],
+  ['Analog','LC30101','Roll force, OP side',()=>f1(S.fop,0)+' kN'],
+  ['Analog','LC30102','Roll force, DR side',()=>f1(S.fdr,0)+' kN'],
+  ['Analog','RD30101','Roll position OP (push-up)',()=>f1(S.gap,3)+' mm'],
+  ['Analog','PT30101','Push-up cyl. head pressure OP',()=>f1(S.fop/4.4/10,0)+' bar'],
+  ['Analog','PG20701','Entry deflector roll speed',()=>f1((S.mv<0?S.v*M().passes[S.pass+1]/M().passes[S.pass]:S.v)*60,0)+' m/min'],
+  ['Analog','PG40201','Delivery deflector roll speed',()=>f1((S.mv<0?S.v:S.v*M().passes[S.pass+1]/M().passes[S.pass])*60,0)+' m/min'],
+  ['Analog','SS30101','Mill main drive speed',()=>f1(S.v*60/(Math.PI*2*WR_R)/1.03,0)+' rpm (WR)']
+];
+let sgHTML='';grp='';for(const s of SG){if(s[0]!==grp){grp=s[0];sgHTML+='<h3>'+(grp==='Digital'?'Digital sensors':'Analog measurements')+'</h3>';}
+  sgHTML+='<div><span'+(s[0]==='Digital'?' class="lamp" id="sg'+SG.indexOf(s)+'"':'')+'></span><span>'+s[2]+'</span>'+(s[0]==='Analog'?'<b id="sg'+SG.indexOf(s)+'"></b>':'')+'<code>'+s[1]+'</code></div>';}
+$('sg').innerHTML=sgHTML;
+const DRV=[['VM10401','POR main drive',400,()=>reels.POR.rpm,()=>S.un===reels.POR?S.pun:0],['VM20401','ETR main drive',1800,()=>reels.ETR.rpm,()=>S.un===reels.ETR?S.pun:S.wd===reels.ETR?S.pwd:0],
+  ['VM30101/02','Mill main drive, master + slave',3800,()=>S.v*60/(Math.PI*2*WR_R)/1.03,()=>S.pmill],['VM40401','DTR main drive',1800,()=>reels.DTR.rpm,()=>S.wd===reels.DTR?S.pwd:S.un===reels.DTR?S.pun:0]];
+$('drv').innerHTML=DRV.map((d,i)=>'<tr><td>'+d[0]+'</td><td>'+d[1]+'</td><td>'+(d[2]===3800?'2 × 1900':d[2])+' kW</td><td id="dv'+i+'"></td><td id="dp'+i+'"></td><td id="dl'+i+'"></td></tr>').join('');
+
+/* ---------- 3D ---------- */
+const host=$('scene');
+let renderer;
+try{renderer=new THREE.WebGLRenderer({antialias:true});}catch(e){host.insertAdjacentHTML('beforeend','<div class="err">3D view needs WebGL, which this browser has turned off. The readouts still run.</div>');}
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(42,1,0.1,220);
+const pick=[],groups={};let controls=null;
+const tex=(w,h,fn,rep)=>{const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);}return t;};
+let seed=7;const rnd=()=>(seed=seed*16807%2147483647)/2147483647;
+if(renderer){
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setClearColor(0x1a201f);host.prepend(renderer.domElement);
+  scene.fog=new THREE.Fog(0x1a201f,38,90);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.maxPolarAngle=1.5;controls.minDistance=1.2;controls.maxDistance=60;
+}
+const paint=tex(256,512,(g,w,h)=>{g.fillStyle='#55ab9f';g.fillRect(0,0,w,h);
+  for(let i=0;i<55;i++){const x=rnd()*w,y=rnd()*h*0.8,l=30+rnd()*200,a=0.05+rnd()*0.16;g.fillStyle=rnd()<0.6?'rgba(92,52,24,'+a+')':'rgba(20,60,55,'+a+')';g.fillRect(x,y,1+rnd()*4,l);}
+  for(let i=0;i<40;i++){g.fillStyle='rgba(200,235,228,'+(0.05+rnd()*0.1)+')';g.fillRect(rnd()*w,rnd()*h,10+rnd()*40,6+rnd()*30);}});
+const plate=tex(128,128,(g,w,h)=>{g.fillStyle='#3b4241';g.fillRect(0,0,w,h);g.strokeStyle='#4c5452';g.lineWidth=5;
+  for(let y=0;y<h;y+=32)for(let x=0;x<w;x+=32){g.beginPath();g.moveTo(x+6+(y/32%2)*14,y+10);g.lineTo(x+18+(y/32%2)*14,y+22);g.stroke();}},[40,26]);
+const rings=tex(256,256,(g,w,h)=>{g.fillStyle='#9aa4a9';g.fillRect(0,0,w,h);for(let r=4;r<128;r+=2.2){g.strokeStyle='rgba(40,48,52,'+(0.15+rnd()*0.25)+')';g.lineWidth=1;g.beginPath();g.arc(128,128,r,0,7);g.stroke();}});
+const band=tex(64,256,(g,w,h)=>{const gr=g.createLinearGradient(0,0,w,0);gr.addColorStop(0,'#8e989d');gr.addColorStop(.5,'#c3cbcf');gr.addColorStop(1,'#8e989d');g.fillStyle=gr;g.fillRect(0,0,w,h);for(let i=0;i<60;i++){g.fillStyle='rgba(60,70,75,.12)';g.fillRect(0,rnd()*h,w,1);}});
+const roll=tex(256,64,(g,w,h)=>{g.fillStyle='#aab3b8';g.fillRect(0,0,w,h);g.fillStyle='#6d777c';g.fillRect(0,0,22,h);g.fillStyle='rgba(255,255,255,.18)';g.fillRect(120,0,8,h);});
+const stripT=tex(128,32,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='rgba(60,70,75,.35)';g.fillRect(0,0,3,h);g.fillRect(64,0,1,h);});
+const nameplate=tex(512,300,(g,w,h)=>{g.fillStyle='#55ab9f';g.fillRect(0,0,w,h);g.fillStyle='#c49a3a';g.fillRect(96,20,320,110);g.fillStyle='#2a2a26';g.font='bold 74px sans-serif';g.textAlign='center';g.fillText('JFE',256,104);
+  g.fillStyle='#4c4d48';g.fillRect(70,160,372,110);g.fillStyle='#e8e8e2';g.font='bold 52px sans-serif';g.fillText('KAWASAKI · SMS',256,232);});
+const panelT=name=>tex(256,512,(g,w,h)=>{g.fillStyle='#a9b0b1';g.fillRect(0,0,w,h);g.fillStyle='#f2f2ee';g.fillRect(70,24,116,52);g.fillStyle='#222';g.font='bold 40px sans-serif';g.textAlign='center';g.fillText(name,128,64);
+  const cols=['#e2402f','#2fbf5c','#e9c43a','#f5f5f5','#3a7de0'];for(let r=0;r<7;r++)for(let c=0;c<4;c++){g.fillStyle=cols[(r*3+c*2)%5];g.beginPath();g.arc(52+c*50,130+r*48,13,0,7);g.fill();}});
+const Mt=o=>new THREE.MeshStandardMaterial(o);
+const mTeal=Mt({map:paint,roughness:.75,metalness:.1}),mDark=Mt({color:0x353c3e,roughness:.7,metalness:.3}),mSteel=Mt({map:roll,roughness:.35,metalness:.45});
+const mBlue=Mt({color:0x4a5f73,roughness:.6,metalness:.3}),mYel=Mt({color:0xd2a52a,roughness:.6,metalness:.2}),mRed=Mt({color:0xc8322a,roughness:.6}),mGrey=Mt({color:0x6f7a7c,roughness:.6,metalness:.3});
+const box=(w,h,d,mat,x,y,z,p)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;(p||scene).add(m);return m;};
+const cylZ=(r,len,mat,x,y,z,p,seg)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,seg||40),mat);m.rotation.x=Math.PI/2;m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;(p||scene).add(m);return m;};
+const tag=(g,part)=>{g.traverse(o=>{if(o.isMesh){o.userData.part=part;pick.push(o);}});groups[part]=g;};
+const grp3=(x,y,z)=>{const g=new THREE.Group();g.position.set(x,y||0,z||0);scene.add(g);return g;};
+const lamps={};
+const lamp=(id,x,y,z,p,r)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(r||0.07,16,12),Mt({color:0x333a39,roughness:.4}));m.position.set(x,y,z);(p||scene).add(m);lamps[id]=m;return m;};
+
+/* hall */
+scene.add(new THREE.HemisphereLight(0xe2ebe8,0x2b2723,0.75));
+const sun=new THREE.DirectionalLight(0xffffff,0.85);sun.position.set(8,24,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-22,right:22,top:16,bottom:-16,near:1,far:70});scene.add(sun);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,60),Mt({map:plate,roughness:.9,metalness:.15}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+for(const z of[2.9,-3.6]){const l=new THREE.Mesh(new THREE.PlaneGeometry(26,0.12),Mt({color:0xd8b23a,roughness:.8}));l.rotation.x=-Math.PI/2;l.position.set(1.5,0.01,z);scene.add(l);}
+const back=new THREE.Mesh(new THREE.PlaneGeometry(100,18),Mt({color:0x2a4258,roughness:.9}));back.position.set(0,9,-15);scene.add(back);
+for(let x=-18;x<=20;x+=6)for(const z of[-7,6]){const f=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.12,0.5),new THREE.MeshBasicMaterial({color:0xf4f1e2}));f.position.set(x,14,z);scene.add(f);}
+/* work roll changer rails, barriers */
+for(const x of[-0.55,0.55])box(0.12,0.06,7,mSteel,x,0.03,5.2);
+for(const x of[-1.7,1.7]){const g=grp3(x,0,4.2);box(0.08,1,0.08,mRed,-0.6,0.5,0,g);box(0.08,1,0.08,mRed,0.6,0.5,0,g);box(1.28,0.08,0.08,mRed,0,1,0,g);box(1.28,0.08,0.08,mRed,0,0.55,0,g);}
+
+/* mill stand M-301 */
+const stand=grp3(0,0,0);
+for(const zs of[-1.25,1.25]){box(0.55,5.6,0.6,mTeal,-1.0,2.2,zs,stand);box(0.55,5.6,0.6,mTeal,1.0,2.2,zs,stand);box(2.55,0.7,0.6,mTeal,0,-0.25,zs,stand);}
+box(2.8,1.3,3.2,mTeal,0,5.55,0,stand);
+const np=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.0),Mt({map:nameplate,roughness:.8}));np.position.set(0,5.55,1.61);stand.add(np);
+const topA=new THREE.Group(),botA=new THREE.Group();stand.add(topA,botA);
+const wrT=cylZ(WR_R,1.6,mSteel,0,WR_R,0,topA),burT=cylZ(BUR_R,1.5,mSteel,0,2*WR_R+BUR_R,0,topA);
+const wrB=cylZ(WR_R,1.6,mSteel,0,-WR_R,0,botA),burB=cylZ(BUR_R,1.5,mSteel,0,-2*WR_R-BUR_R,0,botA);
+for(const zs of[-0.85,0.85]){box(0.95,0.52,0.24,mDark,0,WR_R,zs,topA);box(1.35,1.35,0.24,mDark,0,2*WR_R+BUR_R,zs,topA);box(0.95,0.52,0.24,mDark,0,-WR_R,zs,botA);box(1.35,1.35,0.24,mDark,0,-2*WR_R-BUR_R,zs,botA);}
+for(const zs of[-0.85,0.85]){box(0.5,0.18,0.3,mYel,0,2*WR_R+2*BUR_R+0.12,zs,topA);}
+botA.position.y=PASS_Y-0.004;
+const hoodShape=new THREE.Shape([new THREE.Vector2(1.3,3.05),new THREE.Vector2(5.0,3.05),new THREE.Vector2(5.0,3.5),new THREE.Vector2(1.3,5.1)]);
+const hoodGeo=new THREE.ExtrudeGeometry(hoodShape,{depth:3.0,bevelEnabled:false});hoodGeo.translate(0,0,-1.5);
+const mHood=Mt({map:paint,roughness:.75,metalness:.1,side:THREE.DoubleSide});
+for(const s of[1,-1]){const h=new THREE.Mesh(hoodGeo,mHood);h.scale.x=s;h.castShadow=true;stand.add(h);}
+lamp('stand',1.35,4.6,1.62,stand,0.09);
+/* mill main motors (drive side) and spindles */
+for(const[i,z]of[[0,-4.6],[1,-7.2]]){box(2.0,2.0,2.2,mBlue,0,1.1,z,stand);}
+cylZ(0.12,4.0,mDark,0,PASS_Y+0.22,-3.3,stand,16);cylZ(0.12,6.6,mDark,0,PASS_Y-0.22,-4.6,stand,16);
+tag(stand,'MIL');
+/* coolant headers + spray, tank */
+const cool=grp3(0,0,0);
+for(const x of[-0.6,0.6]){cylZ(0.05,1.6,mBlue,x,PASS_Y+0.48,0,cool,12);cylZ(0.05,1.6,mBlue,x,PASS_Y-0.48,0,cool,12);}
+const tank=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,2.2,32),mBlue);tank.position.set(-10.5,1.1,-11.5);tank.castShadow=true;cool.add(tank);
+const tank2=tank.clone();tank2.position.x=-13;cool.add(tank2);lamp('cool',-10.5,2.35,-11.5,cool,0.1);
+const NPT=260,sprayGeo=new THREE.BufferGeometry(),spray=new Float32Array(NPT*3);
+for(let i=0;i<NPT;i++){spray[i*3]=(rnd()<.5?-1:1)*(0.25+rnd()*0.32);spray[i*3+1]=PASS_Y+rnd()*0.45;spray[i*3+2]=(rnd()-0.5)*1.4;}
+sprayGeo.setAttribute('position',new THREE.BufferAttribute(spray,3));
+const sprayPts=new THREE.Points(sprayGeo,new THREE.PointsMaterial({color:0xcfefff,size:0.03,transparent:true,opacity:.75}));scene.add(sprayPts);
+tag(cool,'RCS');
+/* hydraulic power unit */
+const hyd=grp3(-8.5,0,-7.5);box(5,1.6,2.6,mGrey,0,0.8,0,hyd);
+for(let i=0;i<4;i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.7,20),mBlue);m.position.set(-1.8+i*1.2,1.95,0);hyd.add(m);}
+lamp('hyd',2.2,1.7,1.32,hyd,0.1);tag(hyd,'HPS');
+/* pulpit */
+const pul=grp3(-7,0,14.5);box(5.5,0.9,3.4,mGrey,0,1.6,0,pul);box(5.5,0.6,3.4,mGrey,0,3.7,0,pul);
+const glass=new THREE.Mesh(new THREE.BoxGeometry(5.4,1.5,3.3),Mt({color:0x9fc6d6,roughness:.15,metalness:.2,transparent:true,opacity:.45}));glass.position.set(0,2.75,0);pul.add(glass);
+for(const x of[-2.6,2.6])box(0.2,1.15,0.2,mGrey,x,0.58,0,pul);tag(pul,'PUL');
+/* local panels by the stand (as in the photo) */
+for(const[n,x]of[['ETR',3.4],['DTR',-3.4]]){const g=grp3(x,0,2.4);box(0.95,1.8,0.55,Mt({color:0xa9b0b1,roughness:.6}),0,0.9,0,g);
+  const f=new THREE.Mesh(new THREE.PlaneGeometry(0.85,1.6),Mt({map:panelT(n),roughness:.6}));f.position.set(0,0.92,0.28);g.add(f);}
+
+/* deflector rolls with pinch rolls, gauges, shear */
+const defl={},pinch={};
+for(const[id,x]of[['EPR',X.EDEF],['DPR',X.DDEF]]){const g=grp3(x);
+  defl[id]=cylZ(DEF_R,1.5,mSteel,0,PASS_Y-DEF_R-0.008,0,g,28);pinch[id]=cylZ(0.12,1.5,mSteel,0,PASS_Y+0.34,0,g,24);
+  for(const zs of[-0.85,0.85]){box(0.36,PASS_Y-DEF_R,0.22,mDark,0,(PASS_Y-DEF_R)/2,zs,g);box(0.3,0.55,0.18,mDark,0,PASS_Y+0.3,zs,g);}
+  tag(g,id);}
+for(const[id,x]of[['ETG',X.ETG],['DTG',X.DTG]]){const g=grp3(x,PASS_Y,0);
+  box(0.28,1.5,0.28,mYel,0,0,-1.05,g);box(0.3,0.22,1.85,mYel,0,0.5,-0.2,g);box(0.3,0.22,1.85,mYel,0,-0.5,-0.2,g);box(0.3,PASS_Y-0.75,0.3,mDark,0,-(PASS_Y+0.75)/2,-1.05,g);
+  lamp(id,0,0.75,-1.05,g,0.08);tag(g,id);}
+const csr=grp3(X.CSR,PASS_Y,0);box(0.3,0.25,1.7,mDark,0,0.45,0,csr);box(0.3,0.25,1.7,mDark,0,-0.45,0,csr);tag(csr,'CSR');
+
+/* reels: static frame + coil group (coil moves with the coil car) */
+const rv={};
+for(const id of['POR','ETR','DTR']){
+  const g=grp3(X[id],REEL_Y,0);
+  const pv=new THREE.Group();g.add(pv);cylZ(MAND[id]/2,1.75,mSteel,0,0,0,pv,32);
+  box(1.4,REEL_Y+0.3,0.7,mDark,0,-(REEL_Y-0.3)/2-0.3,-1.3,g);box(1.3,1.2,1.1,mDark,0,0,-1.95,g);cylZ(id==='POR'?0.5:0.65,1.4,mBlue,0,0,-3.2,g,32);
+  box(0.5,REEL_Y+0.1,0.35,mDark,0,-(REEL_Y-0.1)/2-0.15,1.2,g);
+  lamp(id,0.95,-REEL_Y+0.75,1.35,g,0.07);box(0.08,0.7,0.08,mDark,0.95,-REEL_Y+0.35,1.35,g);
+  const cg=grp3(X[id],REEL_Y,0);const cp=new THREE.Group();cg.add(cp);
+  const coil=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,64),[Mt({map:band,roughness:.35,metalness:.45}),Mt({map:rings,roughness:.4,metalness:.35}),Mt({map:rings,roughness:.4,metalness:.35})]);
+  coil.rotation.x=Math.PI/2;coil.castShadow=coil.receiveShadow=true;cp.add(coil);
+  for(const x of[-1,1])box(0.12,0.05,5.6,mSteel,X[id]+x*0.5,0.03,3.0);
+  const car=box(1.5,0.35,1.5,mYel,X[id],0.2,0);
+  rv[id]={g,pv,cg,cp,coil,car};tag(g,id);tag(cg,id);
+}
+/* coil storage (POR) and delivery skid with waiting coils */
+const store=(x,z,od,id)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(od/2,od/2,W,48),[Mt({map:band,roughness:.35,metalness:.45}),Mt({map:rings,roughness:.4}),Mt({map:rings,roughness:.4})]);m.rotation.x=Math.PI/2;m.position.set(x,od/2+0.15,z);m.castShadow=true;scene.add(m);
+  box(1.6,0.3,1.6,mDark,x,0.15,z);return m;};
+const nextCoil=store(X.POR,4.4,1.72),doneCoil=store(X.DTR,4.4,1.72);
+/* POR holddown roll, threading table, pinch roll & flattener, strip centering, carry over table */
+const phdG=grp3(X.POR-0.6,0,0);const phdR=cylZ(0.18,1.5,mSteel,0,0,0,phdG,24);box(0.15,0.15,1.7,mDark,0.45,0.15,0,phdG);tag(phdG,'PHD');
+const pth=box(1.6,0.06,1.4,mDark,X.POR-1.4,PASS_Y+0.25,0);tag(pth,'PTH');
+const pprG=grp3(X.PPR,0,0);const pprB=cylZ(0.125,1.5,mSteel,0,1.62,0,pprG,24);const pprT=cylZ(0.125,1.5,mSteel,0,1.9,0,pprG,24);
+for(const zs of[-0.85,0.85])box(0.5,1.5,0.22,mDark,0,0.75,zs,pprG);tag(pprG,'PPR');
+const scrG=grp3(X.SCR,0,0);const scrL=[];for(const s of[-1,1]){const m=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.4,16),mSteel);m.position.set(0,1.72,s*0.8);scrG.add(m);scrL.push(m);}
+box(0.3,1.5,0.2,mDark,0,0.75,-1.0,scrG);box(0.3,1.5,0.2,mDark,0,0.75,1.0,scrG);tag(scrG,'SCR');
+const cot=box(3.4,0.05,1.3,Mt({color:0x59615f,roughness:.7,transparent:true,opacity:.55}),(X.SCR+X.EDEF+0.6)/2,1.43,0);tag(cot,'COT');
+/* belt wrapper at DTR */
+const dbwG=grp3(X.DBW,0,0);const dbwArm=box(1.4,0.35,1.5,mYel,0,0.9,0,dbwG);box(0.4,0.8,1.6,mDark,-0.6,0.4,0,dbwG);tag(dbwG,'DBW');
+/* strip oiler + snubber */
+const sto=grp3(X.DTR+1.25,0,0);box(0.3,0.25,1.6,mBlue,0,PASS_Y+0.25,0,sto);tag(sto,'STO');
+
+/* strip polyline */
+const segs=[0,1,2,3,4,5].map(()=>{const t=stripT.clone();t.needsUpdate=true;t.wrapS=t.wrapT=THREE.RepeatWrapping;const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),Mt({map:t,color:0xc8d0d4,roughness:.3,metalness:.5}));m.castShadow=true;m.visible=false;scene.add(m);return m;});
+function tangent(cx,cy,r,px,py){const dx=px-cx,dy=py-cy,d=Math.hypot(dx,dy);if(d<=r+1e-3)return[cx,cy+r];const th=Math.atan2(dy,dx),a=Math.acos(r/d);const p1=[cx+r*Math.cos(th+a),cy+r*Math.sin(th+a)],p2=[cx+r*Math.cos(th-a),cy+r*Math.sin(th-a)];return p1[1]>p2[1]?p1:p2;}
+function buildPath(){
+  const uSide=S.un===reels.DTR?X.DDEF:X.EDEF,wSide=S.wd===reels.DTR?X.DDEF:X.EDEF,P=[];
+  if(S.un===reels.POR){const pp=[X.PPR,1.76];P.push(tangent(X.POR,REEL_Y,diam(S.un)/2,pp[0],pp[1]),pp,[X.SCR,1.68]);}
+  else P.push(tangent(X[S.un.id],REEL_Y,diam(S.un)/2,uSide,PASS_Y));
+  P.push([uSide,PASS_Y],[0,PASS_Y],[wSide,PASS_Y]);
+  P.push(tangent(X[S.wd.id],REEL_Y,diam(S.wd)/2,wSide,PASS_Y));
+  return P;
+}
+function updateStrip(){
+  const P=buildPath(),n=P.length-1,L=[];for(let i=0;i<n;i++)L.push(Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]));
+  const bi=P.findIndex(p=>p[0]===0&&p[1]===PASS_Y);
+  S.pathLen=L.reduce((a,b)=>a+b,0);S.biteAt=L.slice(0,bi).reduce((a,b)=>a+b,0);S.pinchAt=S.un===reels.POR?L[0]+L[1]:0;
+  const hin=M().passes[S.pass],hout=M().passes[S.pass+1];
+  let rem=S.seq==='unload'?0:S.head;if(S.broken)rem=Math.min(rem,S.biteAt+0.4);
+  for(let i=0;i<segs.length;i++){
+    const m=segs[i];if(i>=n){m.visible=false;continue;}
+    const a=P[i],b=P[i+1],l=Math.min(L[i],rem);rem-=L[i];if(l<=0.01){m.visible=false;continue;}m.visible=true;
+    const f=l/L[i],ex=a[0]+(b[0]-a[0])*f,ey=a[1]+(b[1]-a[1])*f,ent=i<bi,th=0.004+(ent?hin:hout)*0.004;
+    m.position.set((a[0]+ex)/2,(a[1]+ey)/2,0);m.rotation.z=Math.atan2(b[1]-a[1],b[0]-a[0]);m.scale.set(l,th,W);
+    m.material.map.repeat.set(l/0.7,1);m.material.map.offset.x=-(ent?S.travIn:S.travOut)/0.7;
+    m.material.color.setHex(S.pass===0&&ent&&S.mode==='CR'?0x7b8186:ent?0xb8c0c5:0xdde3e6);
+  }
+}
+
+/* labels */
+const LB=[['POR','Payoff reel',[X.POR,REEL_Y+1.25,0],1],['ETR','ETR',[X.ETR,REEL_Y+1.25,0],1],['MIL','Mill stand',[0,6.9,0],1],['DTR','DTR',[X.DTR,REEL_Y+1.25,0],1],
+  ['ETG','Entry gauge',[X.ETG,PASS_Y+1.0,-1.05],0],['DTG','Delivery gauge',[X.DTG,PASS_Y+1.0,-1.05],0],['DBW','Belt wrapper',[X.DBW,1.5,0],0],['HPS','Hydraulics',[-8.5,2.6,-7.5],0],['PUL','Pulpit',[-7,4.3,14.5],0]];
+$('labels').innerHTML=LB.map(l=>'<div class="lbl" id="l-'+l[0]+'">'+l[1]+'<small></small></div>').join('');
+const roleOf=id=>{const r=reels[id];if(S.seq!=='unload'&&r===S.un)return'unwinding';if(S.seq!=='unload'&&r===S.wd)return S.head>=S.pathLen?'winding':'waiting for head';return r.L>1?'holding strip':'empty';};
+
+/* parts info */
+const gRole=id=>(id==='ETG')===(S.mv<0)?'entry':'exit';
+const PARTS={
+  MIL:{n:'Mill stand',c:'M-301 · MIL',d:'4-high stand, work roll driven. Hydraulic push-up screwdown under the bottom backup roll, WR bender. BUR Ø1220–1320 mm, WR Ø410–470 mm.',
+    r:()=>[['Roll force OP / DR',f1(S.fop,0)+' / '+f1(S.fdr,0)+' kN','LC30101/02'],['Roll position',f1(S.gap,3)+' mm','RD30101/02'],['Push-up pressure',S.press>150&&!S.f.servo?'normal':'abnormal','PS30105'],['Main drive',f1(S.pmill,0)+' kW of 3800','VM30101/02'],['Direction',S.mv<0?'entry → delivery':'delivery → entry','']]},
+  POR:{n:'Pay off reel',c:'M-104 · POR',d:'Holds the incoming hot-rolled coil (ID 610 mm, max. 25 t). Used on pass 1 only; mill entry speed is then limited to 400 m/min. Max. tension 5.0 t.',r:()=>reelRows('POR','VM10401','PS10401')},
+  ETR:{n:'Entry tension reel',c:'M-204 · ETR',d:'Winds the strip on even passes and unwinds it with back tension on later odd passes. Max. tension 9.6 t, 1800 kW drive.',r:()=>reelRows('ETR','VM20401','PS20401')},
+  DTR:{n:'Delivery tension reel',c:'M-404 · DTR',d:'Winds on odd passes, with the belt wrapper for the head end. The finished coil leaves on the delivery coil car. Max. tension 9.6 t, 1800 kW drive.',r:()=>reelRows('DTR','VM40401','PS40401')},
+  ETG:{n:'Entry thickness gauge stand',c:'M-208 · ETG',d:'X-ray gauge (Radiometrie RM215D) on the entry side, 2.0 m from the mill. It is the entry gauge on passes towards the DTR and the exit gauge on passes towards the ETR.',r:()=>gaugeRows('ETG','XG20801','LS20801')},
+  DTG:{n:'Delivery thickness gauge stand',c:'M-401 · DTG',d:'X-ray gauge on the delivery side, 2.04 m from the mill. Feeds gap feedback AGC when it is the exit gauge.',r:()=>gaugeRows('DTG','XG40101','LS40101')},
+  EPR:{n:'Entry deflector roll with pinch roll',c:'M-207 · EPR',d:'Deflector Ø346–350 mm guides the strip from the ETR or POR onto the pass line. Its pulse generator measures strip speed for elongation.',r:()=>[['Strip speed',SG[23][3](),'PG20701'],['Pinch roll lift open',yes(true),'PX20701']]},
+  DPR:{n:'Delivery deflector roll with pinch roll',c:'M-402 · DPR',d:'Deflector Ø346–350 mm between the pass line and the DTR, with speed measurement.',r:()=>[['Strip speed',SG[24][3](),'PG40201'],['Pinch roll lift open',yes(true),'PX40201']]},
+  CSR:{n:'Cutting shear',c:'M-304 · CSR',d:'Delivery shear, 1.45 m from the mill. Cuts the strip at coil end.',r:()=>[['Knife lower end',yes(S.seq!=='unload'),'PX30402']]},
+  PPR:{n:'Pinch roll and flattener',c:'M-107 · PPR',d:'POR pinch roll Ø246–250 mm feeds and flattens the head end while threading from the POR, then opens for rolling.',r:()=>[['Top roll upper end',yes(!ppr()),'PX10701'],['Bottom roll speed',f1(S.un===reels.POR?S.v*M().passes[1]/M().passes[0]*60:0,0)+' m/min','PG10701']]},
+  PHD:{n:'POR holddown roll',c:'M-105 · PHD',d:'Presses on the outer wrap while the coil opener peels the head end.',r:()=>[['Upper end',yes(!phd()),'PX10501']]},
+  PTH:{n:'Coil opener and threading device',c:'M-106 · PTH',d:'Threading table guides the head end from the POR to the pinch roll.',r:()=>[['Threading table retract end',yes(!phd()),'PX10602']]},
+  SCR:{n:'Strip centering rolls',c:'M-108 · SCR',d:'Centre the strip during threading from the POR (width adjust by pulse generator).',r:()=>[['Open end',yes(!ppr()),'PX10803'],['Width position',ppr()?'1290 mm':'1360 mm','PG10801']]},
+  COT:{n:'Carry over table',c:'M-110 · COT',d:'Carries the strip from the POR over the ETR to the entry deflector roll.',r:()=>[['In use',yes(S.un===reels.POR),'HV11001']]},
+  DBW:{n:'Belt wrapper',c:'M-407 · DBW',d:'Wraps the head end around the DTR mandrel at threading, then traverses out before acceleration.',r:()=>[['Engaged',yes(dbw()),'PX40701'],['Traverse out end',yes(!dbw()),'PX40702']]},
+  STO:{n:'Strip oiler',c:'M-405 · STO',d:'Sprays oil on the strip before it winds on the DTR.',r:()=>[['Oiler pump',onoff(S.v>1&&S.wd===reels.DTR),'AM40501']]},
+  HPS:{n:'High pressure and auxiliary hydraulic systems',c:'M-505 / M-506',d:'High pressure system for the push-up cylinders (HPC) and auxiliary hydraulics for the line equipment.',r:()=>[['High hyd. pressure',f1(S.press,0)+' bar',''],['Pressure normal',yes(S.press>150),'PS50501'],['Aux. pressure normal',yes(true),'PS50601']]},
+  RCS:{n:'Roll coolant / skinpass solution',c:'M-503 / M-504',d:'Roll coolant from bright or dull tanks in CR mode, skinpass solution in SK mode, sprayed on rolls and strip.',r:()=>[['Supply',S.mode==='CR'?'roll coolant (bright)':'SK solution',''],['Flow',f1(S.flow,0)+' L/min',''],['Coolant condition',S.f.cool?'not OK':'OK','Memory']]},
+  PUL:{n:'Pulpit for CRM',c:'Operator pulpit',d:'Main desk with the line push buttons (THREAD, RUN, HOLD, STOP, Q-STOP, E-STOP, tension ON/OFF), HMI screens and chart recorder.',r:()=>[['Line status',NAMES[S.seq],''],['Auto sequence',onoff(S.auto),'']]}
+};
+function reelRows(id,drive,mx){const r=reels[id];const p=r===S.un?S.pun:r===S.wd?S.pwd:0;return[['Role',roleOf(id),''],['Coil diameter',f1(diam(r)*1000,0)+' mm',''],['Speed',f1(r.rpm,0)+' rpm',drive],['Power',f1(p,0)+' kW',''],['Strip on reel',f1(r.L,0)+' m',''],['Mandrel expand',yes(true),mx]];}
+function gaugeRows(id,xg,ls){const ent=gRole(id)==='entry';return[['Role this pass',gRole(id)+' gauge',''],['Measured',f1(ent?S.hinAct:S.houtAct,3)+' mm',xg],['Target',f1(M().passes[S.pass+(ent?0:1)],3)+' mm',''],['In-line position',yes(true),ls]];}
+let sel='MIL',helper=null;
+function select(p){sel=p;if(helper){scene.remove(helper);helper=null;}if(groups[p]&&renderer){helper=new THREE.BoxHelper(groups[p],0xffd23f);scene.add(helper);}renderSel();}
+function renderSel(){const P=PARTS[sel];$('sel').innerHTML='<h2>'+P.n+'<small>'+P.c+'</small></h2><p>'+P.d+'</p><table class="rows">'+P.r().map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table>';}
+if(renderer){
+  const ray=new THREE.Raycaster(),mv=new THREE.Vector2();let down=null;
+  renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+  renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;const r=renderer.domElement.getBoundingClientRect();
+    mv.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(mv,camera);const hit=ray.intersectObjects(pick,false)[0];if(hit&&PARTS[hit.object.userData.part])select(hit.object.userData.part);});
+}
+/* camera views */
+const VIEWS={overview:[[11,11,21],[1.5,1.0,0]],entry:[[15,4.5,8.5],[6.5,1.2,0]],stand:[[2.7,2.35,1.15],[0,1.3,-0.15]],exit:[[-11.5,4.5,8.5],[-4.2,1.2,0]],top:[[1.5,30,0.01],[1.5,0,0]]};
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;let tw=null;
+function view(name){const v=VIEWS[name];if(!controls)return;if(reduce){camera.position.set(...v[0]);controls.target.set(...v[1]);return;}
+  tw={t:0,p0:camera.position.clone(),t0:controls.target.clone(),p1:new THREE.Vector3(...v[0]),t1:new THREE.Vector3(...v[1])};}
+for(const b of $('views').children)b.onclick=()=>{view(b.dataset.v);for(const c of $('views').children)c.classList.toggle('act',c===b);};
+camera.position.set(...VIEWS.overview[0]);if(controls)controls.target.set(...VIEWS.overview[1]);
+if(innerWidth<640)camera.position.set(14,15,30);
+
+/* trend */
+const trend=$('trend'),hist=[],probe=document.createElement('span');probe.style.display='none';document.body.append(probe);
+const C=v=>{probe.style.color='var('+v+')';return getComputedStyle(probe).color;};
+function drawTrend(){
+  const dpr=Math.min(devicePixelRatio,2),w=trend.clientWidth,h=trend.clientHeight;if(!w)return;
+  if(trend.width!==Math.round(w*dpr)){trend.width=Math.round(w*dpr);trend.height=Math.round(h*dpr);}
+  const g=trend.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  const sk=S.mode==='SK',mid=sk?1:0,tol=sk?0.1:M().passes[S.pass+1]*10,lim=Math.max(tol*2.2,...hist.map(v=>Math.abs(v-mid))),y=v=>h/2-(v-mid)/lim*(h/2-6);
+  g.fillStyle=C('--tealbg');g.fillRect(0,y(mid+tol),w,y(mid-tol)-y(mid+tol));
+  g.strokeStyle=C('--line');g.beginPath();g.moveTo(0,y(mid));g.lineTo(w,y(mid));g.stroke();
+  g.strokeStyle=C('--teal');g.lineWidth=2;g.beginPath();hist.forEach((v,i)=>{const x=w-(hist.length-1-i)*(w/239);i?g.lineTo(x,y(v)):g.moveTo(x,y(v));});g.stroke();
+  g.fillStyle=C('--mute');g.font='12px Barlow,sans-serif';
+  g.fillText(sk?(mid+tol).toFixed(1)+'%':'+'+tol.toFixed(0),4,Math.max(12,y(mid+tol)-3));g.fillText(sk?(mid-tol).toFixed(1)+'%':'−'+tol.toFixed(0),4,Math.min(h-3,y(mid-tol)+13));
+}
+const ro=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;if(renderer){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}drawTrend();});
+ro.observe(host);ro.observe(trend);
+
+/* UI refresh, 10 Hz */
+function ui(){
+  const bad=S.estop||S.broken||S.f.hyd||S.f.servo,stopped=S.v===0;
+  const label=S.estop?'Emergency stop':S.broken?'Strip breakage':bad?'Fault stop':stopped&&(S.seq==='roll'||S.seq==='thread')?'Line stop':NAMES[S.seq]+(S.cmd==='hold'?' (hold)':'');
+  $('st-state').textContent=label;$('st-lamp').className='lamp '+(bad?'bad':stopped||S.seq==='unload'?'warn':'on');
+  $('v-mode').textContent='Rolling mode · '+S.mode+' · '+(S.un===reels.POR?'POR mode':'ETR mode');$('v-pass').textContent=S.pass+1;
+  $('v-dir').innerHTML=(S.seq==='unload'?'Coil change':S.un.id+' → '+S.wd.id)+'<small>'+(S.seq==='thread'?'head '+Math.min(S.head,S.pathLen).toFixed(1)+' / '+S.pathLen.toFixed(1)+' m':S.seq==='roll'?Math.round(S.un.L)+' m left on '+S.un.id:'&nbsp;')+'</small>';
+  const ag=S.mode==='CR'?[['GFF',S.agc&&S.v>2],['GFB',S.agc&&S.v>2],['MMC',S.agc&&S.v>0.4],['TFF',S.agc&&S.v>0.4&&S.v<=2],['TFB',S.agc&&S.v>0.4&&S.v<=2]]:[['CFC',!S.agc&&S.v>0.4],['Elongation',S.agc&&S.v>0.4]];
+  $('agc').innerHTML='<span class="'+(S.agc?'on':'')+'">AGC '+(S.agc?'on':'off')+'</span>'+ag.map(a=>'<span class="'+(a[1]?'on':'')+'">'+a[0]+'</span>').join('');
+  const set=(id,v,u,i)=>{$(id).innerHTML=v+'<small>'+u+'</small>';if(i!==undefined)$(id+'i').textContent=i;};
+  const ent=S.mv<0?'XG20801':'XG40101',ext=S.mv<0?'XG40101':'XG20801';
+  set('k-spd',f1(S.v*60,0),'m/min',S.cmd==='run'?'target '+M().vmax[S.pass]+' m/min':S.cmd==='thread'?'threading speed 30 m/min':S.cmd.toUpperCase());
+  set('k-frc',f1(S.force/9.81,0),'t','OP '+f1(S.fop,0)+' / DR '+f1(S.fdr,0)+' kN');
+  set('k-hin',f1(S.hinAct,3),'mm',ent+' · target '+M().passes[S.pass].toFixed(2));
+  if(S.mode==='CR'){$('k-houtl').textContent='Exit thickness';set('k-hout',f1(S.houtAct,3),'mm',ext+' · '+(S.dev*1000>=0?'+':'')+f1(S.dev*1000,0)+' µm');$('k-gapl').textContent='Roll gap';set('k-gap',f1(S.gap,2),'mm','RD30101/02');$('trend-cap').textContent='Exit thickness deviation, µm (band = ±1% tolerance)';}
+  else{$('k-houtl').textContent='Elongation';set('k-hout',f1(S.elong,2),'%','from PG20701 / PG40201 · target 1.00%');$('k-gapl').textContent='Roll gap';set('k-gap',f1(S.gap,2),'mm','constant force control');$('trend-cap').textContent='Elongation, % (band = 1.0 ±0.1%)';}
+  set('k-ten',tn(S.tin)+' / '+tn(S.tout),'','limits: '+(S.un===reels.POR?'POR 5.0 t':'TR 9.6 t')+' / TR 9.6 t'+(S.v===0&&S.stopT>60?' · stop tension 30%':''));
+  $('kk-hout').classList.toggle('alert',S.off);
+  for(const id of['POR','ETR','DEL']){const b=$('t-'+id);b.classList.toggle('act',S['ten'+id]);b.firstChild.className='lamp '+(S['ten'+id]?'on':'');}
+  for(const[id,c]of[['b-thread','thread'],['b-run','run'],['b-hold','hold'],['b-stop','stop'],['b-jog','jog']])$(id).classList.toggle('act',S.cmd===c&&(c!=='stop'||S.v>0));
+  IL.forEach((i,n)=>{const el=$('il'+n),app=!i[4]||i[4]();el.classList.toggle('na',!app);el.firstChild.className='lamp '+(!app?'':i[3]()?'on':'bad');});
+  const fr=ilFail(true);$('il-lamp').className='lamp '+(fr.length?'bad':'on');$('il-sum').textContent=fr.length?'Line run I/L not made: '+fr.length+' condition'+(fr.length>1?'s':'')+' open':'Line run I/L OK';
+  SG.forEach((s,n)=>{const el=$('sg'+n);if(!el)return;if(s[0]==='Digital')el.className='lamp '+(s[3]()?'on':'');else el.textContent=s[3]();});
+  DRV.forEach((d,i)=>{const p=d[4]();$('dv'+i).textContent=f1(d[3](),0)+' rpm';$('dp'+i).textContent=f1(p,0)+' kW';$('dl'+i).textContent=f1(Math.min(175,p/d[2]*100),0)+'%';});
+  const np=NP();for(let k=0;k<np;k++){const r=$('p'+k);if(r)r.className=k<S.pass||(k===S.pass&&S.seq==='unload')?'done':k===S.pass?'now':'';}
+  $('v-coils').textContent=S.coils;$('v-next').textContent=S.next;
+  for(const l of LB){const el=$('l-'+l[0]).lastChild;el.textContent=reels[l[0]]?roleOf(l[0]):l[0]==='ETG'||l[0]==='DTG'?gRole(l[0])+' gauge':l[0]==='DBW'?(dbw()?'wrapping':''):'';}
+  renderSel();
+  hist.push(S.mode==='SK'?(S.v>0.3?S.elong:1):(S.v>0.3?S.dev*1000:0));if(hist.length>240)hist.shift();drawTrend();
+}
+
+/* initial state: CR coil mid-way through pass 2 (DTR → ETR) */
+setupPass(1);reels.DTR.L=lenAt(2.2)*0.55;reels.ETR.L=lenAt(1.6)*0.45;S.seq='roll';S.cmd='run';S.v=8;S.tenETR=true;S.tenDEL=true;
+buildSchedule();log('info','Demo started with simulated data: CR coil on pass 2, DTR → ETR');
+ui();select('MIL');
+
+const setLamp=(id,st)=>{const m=lamps[id];if(!m)return;const c=st==='on'?0x1fd760:st==='bad'?0xff3b30:st==='warn'?0xffb020:0;m.material.emissive.setHex(c);m.material.color.setHex(st==='off'?0x333a39:c);};
+let last=performance.now(),uiT=0;const vtmp=new THREE.Vector3();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  const sdt=dt*S.scale,n=Math.ceil(sdt/0.05);for(let i=0;i<n;i++)step(sdt/n);
+  const hin=M().passes[S.pass],hout=M().passes[S.pass+1];
+  const vVis=Math.min(S.v,4)*(S.broken?0:1),vinVis=vVis*hout/hin;S.travIn+=vinVis*dt;S.travOut+=vVis*dt;
+  if(renderer){
+    updateStrip();
+    for(const id in rv){const r=reels[id],o=rv[id],rad=diam(r)/2;o.coil.visible=r.L>0.5;o.coil.scale.set(rad,W,rad);
+      const sp=S.seq==='unload'?0:r===S.un?vinVis:r===S.wd&&S.head>=S.pathLen?vVis:0;o.pv.rotation.z+=-S.mv*Math.min(sp/MAND[id]*2,18)*dt;o.cp.rotation.z+=-S.mv*Math.min(sp/Math.max(rad,0.2),18)*dt;}
+    const zP=S.carPOR*4.4,zD=S.carDTR*4.4;rv.POR.cg.position.z=zP;rv.POR.car.position.z=zP;rv.DTR.cg.position.z=zD;rv.DTR.car.position.z=zD;
+    rv.DTR.car.position.y=S.seq==='unload'?0.2+0.1:0.2;
+    nextCoil.visible=!(S.carPOR>0);doneCoil.visible=S.skid>0&&!(S.carDTR>0);
+    const lift=Math.max(0,S.gap-hout)*0.035;topA.position.y=PASS_Y+0.004+lift;
+    wrT.rotation.y+=S.mv*vVis/WR_R*dt;wrB.rotation.y-=S.mv*vVis/WR_R*dt;burT.rotation.y-=S.mv*vVis/BUR_R*dt;burB.rotation.y+=S.mv*vVis/BUR_R*dt;
+    const eSp=S.mv<0?vinVis:vVis,dSp=S.mv<0?vVis:vinVis;defl.EPR.rotation.y+=-S.mv*eSp/DEF_R*dt;defl.DPR.rotation.y+=-S.mv*dSp/DEF_R*dt;
+    const porR=diam(reels.POR)/2;phdR.position.set(phd()?0.0:0.2,phd()?REEL_Y+porR+0.18:REEL_Y+porR+0.75,0);phdG.position.x=X.POR-0.25;phdG.visible=reels.POR.L>1||S.carPOR===0;
+    pth.position.y=phd()?PASS_Y+0.2:PASS_Y+0.75;pth.position.x=phd()?X.POR-1.3:X.POR-0.9;pprT.position.y=ppr()?1.9:2.1;
+    scrL[0].position.z=ppr()?-0.66:-0.8;scrL[1].position.z=ppr()?0.66:0.8;
+    pinch.EPR.position.y=PASS_Y+0.34;pinch.DPR.position.y=PASS_Y+0.34;
+    dbwArm.position.x=dbw()?0.7:0;
+    sprayPts.visible=S.flow>800;if(sprayPts.visible){for(let i=0;i<NPT;i++){spray[i*3+1]-=2.2*dt;if(spray[i*3+1]<PASS_Y+0.02)spray[i*3+1]=PASS_Y+0.45;}sprayGeo.attributes.position.needsUpdate=true;}
+    for(const id of['POR','ETR','DTR'])setLamp(id,reels[id].L>1?'on':'off');
+    setLamp('ETG',S.off&&gRole('ETG')==='exit'?'warn':'on');setLamp('DTG',S.off&&gRole('DTG')==='exit'?'warn':'on');
+    setLamp('hyd',S.press>150?'on':'bad');setLamp('cool',S.f.cool?'bad':S.flow>800?'on':'warn');
+    setLamp('stand',S.estop||S.broken||S.f.hyd||S.f.servo?'bad':S.v>0.05?'on':'warn');
+    if(helper)helper.update();
+    if(tw){tw.t=Math.min(1,tw.t+dt/0.9);const e=tw.t<.5?2*tw.t*tw.t:1-(-2*tw.t+2)**2/2;camera.position.lerpVectors(tw.p0,tw.p1,e);controls.target.lerpVectors(tw.t0,tw.t1,e);if(tw.t>=1)tw=null;}
+    controls.update();renderer.render(scene,camera);
+    if($('c-lbl').checked){const w=host.clientWidth,h=host.clientHeight,small=w<560;
+      for(const l of LB){const el=$('l-'+l[0]);vtmp.set(...l[2]).project(camera);const vis=vtmp.z<1&&Math.abs(vtmp.x)<1.05&&(-vtmp.y*0.5+0.5)*h>64&&vtmp.y>-1.05&&(l[3]||!small);
+        el.style.display=vis?'':'none';if(vis)el.style.transform='translate('+((vtmp.x*0.5+0.5)*w)+'px,'+((-vtmp.y*0.5+0.5)*h)+'px) translate(-50%,-100%)';}}
+  }
+  uiT+=dt;if(uiT>0.1){uiT=0;ui();}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
